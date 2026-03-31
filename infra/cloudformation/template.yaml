@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: TODO App Infrastructure
+
+Parameters:
+  MyIP:
+    Type: String
+    Description: My IP address for SSH and HTTP access
+    Default: 133.200.47.1/32
+
+Resources:
+  # VPC
+  TodoVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 172.31.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: todo-vpc
+
+  # インターネットゲートウェイ
+  TodoIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: todo-igw
+
+  # IGWをVPCにアタッチ
+  TodoIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TodoVPC
+      InternetGatewayId: !Ref TodoIGW
+
+  # パブリックサブネット
+  TodoPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TodoVPC
+      CidrBlock: 172.31.0.0/20
+      AvailabilityZone: ap-northeast-1a
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: todo-public-subnet
+
+  # ルートテーブル
+  TodoRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TodoVPC
+      Tags:
+        - Key: Name
+          Value: todo-route-table
+
+  # インターネット向けルート
+  TodoRoute:
+    Type: AWS::EC2::Route
+    DependsOn: TodoIGWAttachment
+    Properties:
+      RouteTableId: !Ref TodoRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref TodoIGW
+
+  # サブネットとルートテーブルの関連付け
+  TodoSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref TodoPublicSubnet
+      RouteTableId: !Ref TodoRouteTable
+
+  # セキュリティグループ
+  TodoSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: TODO App Security Group
+      VpcId: !Ref TodoVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          CidrIp: !Ref MyIP
+      Tags:
+        - Key: Name
+          Value: todo-sg
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref TodoVPC
+
+  SubnetId:
+    Description: Public Subnet ID
+    Value: !Ref TodoPublicSubnet
+
+  SecurityGroupId:
+    Description: Security Group ID
+    Value: !Ref TodoSecurityGroup
